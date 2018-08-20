@@ -114,8 +114,8 @@
     <span class="stat_title">Forwarder</span>
     <span class="stat_data">
       {{- with .forwarderStats -}}
-        {{- if .TransactionsCreated -}}
-          {{- range $key, $value := .TransactionsCreated}}
+        {{- if .Transactions -}}
+          {{- range $key, $value := .Transactions}}
             {{formatTitle $key}}: {{humanize $value}}<br>
           {{- end -}}
         {{- end}}
