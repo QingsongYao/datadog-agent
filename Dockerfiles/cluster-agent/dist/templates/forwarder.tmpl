@@ -3,7 +3,9 @@ Forwarder
 =========
 {{ if .Transactions }}
   {{- range $key, $value := .Transactions }}
+  {{- if $value }}
   {{$key}}: {{humanize $value}}
+  {{- end }}
   {{- end }}
   {{- if .Transactions.DroppedOnInput }}
 
