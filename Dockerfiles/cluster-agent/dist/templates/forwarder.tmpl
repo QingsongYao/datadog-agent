@@ -2,16 +2,16 @@
 Forwarder
 =========
 {{ if .Transactions }}
+  Transactions
+  ============
   {{- range $key, $value := .Transactions }}
-  {{- if $value }}
-  {{$key}}: {{humanize $value}}
-  {{- end }}
+    {{$key}}: {{humanize $value}}
   {{- end }}
   {{- if .Transactions.DroppedOnInput }}
 
-  Warning: the forwarder dropped transactions because all workers were busy.
-  You should review your network performance, and tune the forwarder_num_workers
-  and forwarder_timeout options.
+    Warning: the forwarder dropped transactions because all workers were busy.
+    You should review your network performance, and tune the forwarder_num_workers
+    and forwarder_timeout options.
   {{- end}}
 {{- end}}
 
