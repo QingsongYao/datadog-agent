@@ -30,6 +30,7 @@ type Launcher struct {
 	cli               *client.Client
 	registry          auditor.Registry
 	stop              chan struct{}
+	lostSocket        chan string
 }
 
 // NewLauncher returns a new launcher
@@ -42,6 +43,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		pendingContainers: make(map[string]*Container),
 		registry:          registry,
 		stop:              make(chan struct{}),
+		lostSocket:        make(chan string, 1),
 	}
 	err := launcher.setup()
 	if err != nil {
@@ -129,6 +131,8 @@ func (l *Launcher) run() {
 			containerID := removedService.Identifier
 			l.stopTailer(containerID)
 			delete(l.pendingContainers, containerID)
+		case containerId := <-l.lostSocket:
+			l.restartTailer(containerId)
 		case <-l.stop:
 			// no docker container should be tailed anymore
 			return
@@ -144,9 +148,9 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 		return
 	}
 
-	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan())
+	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.lostSocket)
 
-	// conpute the offset to prevent from missing or duplicating logs
+	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
 	if err != nil {
 		log.Warnf("Could not recover tailing from last committed offset: %v", ShortContainerID(containerID), err)
@@ -168,4 +172,27 @@ func (l *Launcher) stopTailer(containerID string) {
 		go tailer.Stop()
 		delete(l.tailers, containerID)
 	}
+}
+
+func (l *Launcher) restartTailer(containerID string) {
+	oldTailer, _ := l.tailers[containerID]
+	source := oldTailer.source
+	oldTailer.Stop()
+
+	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.lostSocket)
+
+	// compute the offset to prevent from missing or duplicating logs
+	since, err := Since(l.registry, tailer.Identifier(), service.Before)
+	if err != nil {
+		log.Warnf("Could not recover tailing from last committed offset: %v", ShortContainerID(containerID), err)
+	}
+
+	// start the tailer
+	err = tailer.Start(since)
+	if err != nil {
+		log.Warnf("Could not start tailer: %v", containerID, err)
+	}
+
+	// keep the tailer in track to stop it later on
+	l.tailers[containerID] = tailer
 }
